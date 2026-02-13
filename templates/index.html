@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="AI-powered portrait evaluation system that analyzes structural, proportional, and tonal accuracy of sketches and paintings compared to reference photos.">
+    <title>AI Portrait Evaluator — Structural & Tonal Analysis</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <!-- Animated particle background canvas -->
+    <canvas id="particleCanvas"></canvas>
+
+    <!-- Main application wrapper -->
+    <div class="app-wrapper">
+
+        <!-- ============== HERO SECTION ============== -->
+        <header class="hero" id="hero">
+            <div class="hero-badge">AI-Powered Analysis</div>
+            <h1 class="hero-title">
+                Portrait <span class="gradient-text">Evaluator</span>
+            </h1>
+            <p class="hero-subtitle">
+                Upload a reference portrait and your sketch to receive detailed 
+                structural, proportional, and tonal accuracy analysis with AI.
+            </p>
+            <div class="hero-features">
+                <div class="feature-tag"><span class="dot dot-cyan"></span>Structural Analysis</div>
+                <div class="feature-tag"><span class="dot dot-purple"></span>Proportion Scoring</div>
+                <div class="feature-tag"><span class="dot dot-pink"></span>Tonal Evaluation</div>
+            </div>
+        </header>
+
+        <!-- ============== UPLOAD SECTION ============== -->
+        <section class="upload-section" id="uploadSection">
+            <h2 class="section-title">Upload Images</h2>
+            <div class="upload-grid">
+                <!-- Reference Photo Upload -->
+                <div class="upload-card glass-card" id="refUploadCard">
+                    <div class="upload-icon">📸</div>
+                    <h3>Reference Photo</h3>
+                    <p>Upload the original portrait photograph</p>
+                    <div class="drop-zone" id="refDropZone">
+                        <input type="file" id="refInput" accept="image/*" hidden>
+                        <div class="drop-zone-prompt" id="refPrompt">
+                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                                <polyline points="17 8 12 3 7 8"/>
+                                <line x1="12" y1="3" x2="12" y2="15"/>
+                            </svg>
+                            <span>Drop image here or click to browse</span>
+                        </div>
+                        <img id="refPreview" class="preview-img" alt="Reference preview" style="display:none;">
+                    </div>
+                </div>
+
+                <!-- Sketch Upload -->
+                <div class="upload-card glass-card" id="sketchUploadCard">
+                    <div class="upload-icon">🎨</div>
+                    <h3>Your Sketch / Painting</h3>
+                    <p>Upload your artwork for evaluation</p>
+                    <div class="drop-zone" id="sketchDropZone">
+                        <input type="file" id="sketchInput" accept="image/*" hidden>
+                        <div class="drop-zone-prompt" id="sketchPrompt">
+                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                                <polyline points="17 8 12 3 7 8"/>
+                                <line x1="12" y1="3" x2="12" y2="15"/>
+                            </svg>
+                            <span>Drop image here or click to browse</span>
+                        </div>
+                        <img id="sketchPreview" class="preview-img" alt="Sketch preview" style="display:none;">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analyze Button -->
+            <button class="analyze-btn" id="analyzeBtn" disabled>
+                <span class="btn-text">Analyze Accuracy</span>
+                <span class="btn-icon">→</span>
+            </button>
+        </section>
+
+        <!-- ============== LOADING OVERLAY ============== -->
+        <div class="loading-overlay" id="loadingOverlay" style="display:none;">
+            <div class="loader-card glass-card">
+                <div class="loader-spinner">
+                    <div class="spinner-ring"></div>
+                    <div class="spinner-ring"></div>
+                    <div class="spinner-ring"></div>
+                </div>
+                <h3 class="loader-title">Analyzing Your Portrait</h3>
+                <p class="loader-status" id="loaderStatus">Detecting facial landmarks...</p>
+                <div class="loader-bar">
+                    <div class="loader-bar-fill" id="loaderBarFill"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============== ERROR DISPLAY ============== -->
+        <div class="error-banner" id="errorBanner" style="display:none;">
+            <span class="error-icon">⚠️</span>
+            <span class="error-text" id="errorText"></span>
+            <button class="error-close" id="errorClose">&times;</button>
+        </div>
+
+        <!-- ============== RESULTS SECTION ============== -->
+        <section class="results-section" id="resultsSection" style="display:none;">
+            <h2 class="section-title">Analysis Results</h2>
+
+            <!-- Overall Score Card -->
+            <div class="overall-score-card glass-card" id="overallScoreCard">
+                <div class="overall-left">
+                    <div class="circular-progress large" id="overallProgress">
+                        <svg viewBox="0 0 120 120">
+                            <circle class="bg-ring" cx="60" cy="60" r="52"/>
+                            <circle class="progress-ring" cx="60" cy="60" r="52" id="overallRing"/>
+                        </svg>
+                        <div class="progress-value" id="overallValue">0%</div>
+                    </div>
+                    <div class="score-label">Overall Accuracy</div>
+                    <div class="grade-badge" id="gradeBadge">--</div>
+                </div>
+                <div class="overall-right">
+                    <!-- Individual Score Circles -->
+                    <div class="score-trio">
+                        <div class="score-item">
+                            <div class="circular-progress small cyan" id="structuralProgress">
+                                <svg viewBox="0 0 80 80">
+                                    <circle class="bg-ring" cx="40" cy="40" r="34"/>
+                                    <circle class="progress-ring" cx="40" cy="40" r="34" id="structuralRing"/>
+                                </svg>
+                                <div class="progress-value small-val" id="structuralValue">0%</div>
+                            </div>
+                            <span class="score-name">Structural</span>
+                        </div>
+                        <div class="score-item">
+                            <div class="circular-progress small purple" id="proportionProgress">
+                                <svg viewBox="0 0 80 80">
+                                    <circle class="bg-ring" cx="40" cy="40" r="34"/>
+                                    <circle class="progress-ring" cx="40" cy="40" r="34" id="proportionRing"/>
+                                </svg>
+                                <div class="progress-value small-val" id="proportionValue">0%</div>
+                            </div>
+                            <span class="score-name">Proportion</span>
+                        </div>
+                        <div class="score-item">
+                            <div class="circular-progress small pink" id="tonalProgress">
+                                <svg viewBox="0 0 80 80">
+                                    <circle class="bg-ring" cx="40" cy="40" r="34"/>
+                                    <circle class="progress-ring" cx="40" cy="40" r="34" id="tonalRing"/>
+                                </svg>
+                                <div class="progress-value small-val" id="tonalValue">0%</div>
+                            </div>
+                            <span class="score-name">Tonal</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Radar Chart + Image Comparison Row -->
+            <div class="results-grid">
+                <!-- Radar Chart -->
+                <div class="chart-card glass-card">
+                    <h3>Score Breakdown</h3>
+                    <canvas id="radarChart"></canvas>
+                </div>
+
+                <!-- Side-by-Side Image Comparison -->
+                <div class="comparison-card glass-card">
+                    <h3>Image Comparison</h3>
+                    <div class="comparison-images">
+                        <div class="comp-img-wrap">
+                            <img id="compRefImg" alt="Reference">
+                            <span class="img-label">Reference</span>
+                        </div>
+                        <div class="comp-img-wrap">
+                            <img id="compSketchImg" alt="Sketch">
+                            <span class="img-label">Your Sketch</span>
+                        </div>
+                    </div>
+                    <!-- Heatmap Toggle -->
+                    <div class="heatmap-toggle">
+                        <button class="heatmap-btn" id="heatmapBtn">
+                            <span>🔥</span> Show Error Heatmap
+                        </button>
+                    </div>
+                    <div class="heatmap-wrap" id="heatmapWrap" style="display:none;">
+                        <img id="heatmapImg" alt="Error Heatmap">
+                        <span class="img-label">Error Heatmap</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Proportion Details Table -->
+            <div class="details-card glass-card" id="proportionDetailsCard">
+                <h3>📏 Proportion Details</h3>
+                <div class="table-wrap">
+                    <table id="proportionTable">
+                        <thead>
+                            <tr>
+                                <th>Feature</th>
+                                <th>Reference</th>
+                                <th>Sketch</th>
+                                <th>Deviation</th>
+                                <th>Accuracy</th>
+                            </tr>
+                        </thead>
+                        <tbody id="proportionTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Tonal Region Details -->
+            <div class="details-card glass-card" id="tonalDetailsCard">
+                <h3>🎨 Tonal Region Details</h3>
+                <div class="tonal-regions" id="tonalRegions"></div>
+            </div>
+
+            <!-- Feedback Panel -->
+            <div class="feedback-card glass-card" id="feedbackCard">
+                <h3>💬 Detailed Feedback</h3>
+                <div class="feedback-list" id="feedbackList"></div>
+            </div>
+
+            <!-- New Analysis Button -->
+            <button class="analyze-btn reset-btn" id="resetBtn">
+                <span class="btn-text">New Analysis</span>
+                <span class="btn-icon">↺</span>
+            </button>
+        </section>
+
+        <!-- Footer -->
+        <footer class="app-footer">
+            <p>AI Portrait Evaluator — For research and educational purposes</p>
+            <p class="disclaimer">
+                This system evaluates structural similarity, geometric proportion, and tonal alignment.
+                It does <strong>not</strong> evaluate style, creativity, or expression.
+            </p>
+        </footer>
+    </div>
+
+    <!-- External Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <!-- App Scripts -->
+    <script src="{{ url_for('static', filename='js/animations.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
