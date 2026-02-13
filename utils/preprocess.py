@@ -3,7 +3,7 @@ preprocess.py — Image Preprocessing Module
 
 Handles:
 - Background removal using rembg
-- Face detection and 468-landmark extraction via MediaPipe FaceMesh
+- Face detection and 468-landmark extraction via MediaPipe FaceLandmarker (Tasks API)
 - Face alignment (rotation, scale, translation normalization)
 - Orchestrates the full preprocessing pipeline for a reference + sketch pair
 """
@@ -11,9 +11,31 @@ Handles:
 import cv2
 import numpy as np
 import mediapipe as mp
+from mediapipe.tasks import python as mp_python
+from mediapipe.tasks.python import vision as mp_vision
 from rembg import remove
 from PIL import Image
-import io
+import os
+import urllib.request
+
+
+# ---------------------------------------------------------------------------
+# Model Download Helper
+# ---------------------------------------------------------------------------
+
+MODEL_URL = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task"
+MODEL_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "models")
+MODEL_PATH = os.path.join(MODEL_DIR, "face_landmarker.task")
+
+
+def ensure_model():
+    """Download the FaceLandmarker model if it doesn't exist."""
+    if os.path.exists(MODEL_PATH):
+        return
+    os.makedirs(MODEL_DIR, exist_ok=True)
+    print(f"Downloading FaceLandmarker model to {MODEL_PATH}...")
+    urllib.request.urlretrieve(MODEL_URL, MODEL_PATH)
+    print("Model downloaded successfully.")
 
 
 # ---------------------------------------------------------------------------
@@ -48,13 +70,13 @@ def remove_background(img):
 
 
 # ---------------------------------------------------------------------------
-# 2. Face Detection & Landmark Extraction
+# 2. Face Detection & Landmark Extraction (New Tasks API)
 # ---------------------------------------------------------------------------
 
 def detect_landmarks(img):
     """
-    Detect face landmarks using MediaPipe FaceMesh.
-    Extracts 468 facial landmarks.
+    Detect face landmarks using MediaPipe FaceLandmarker (Tasks API).
+    Extracts 478 facial landmarks (468 face + 10 iris).
 
     Args:
         img: BGR image (numpy array)
@@ -62,32 +84,42 @@ def detect_landmarks(img):
     Returns:
         List of (x, y) tuples in pixel coordinates, or None if no face found
     """
-    mp_face_mesh = mp.solutions.face_mesh
+    ensure_model()
 
-    # Convert to RGB for MediaPipe
+    # Create FaceLandmarker
+    base_options = mp_python.BaseOptions(model_asset_path=MODEL_PATH)
+    options = mp_vision.FaceLandmarkerOptions(
+        base_options=base_options,
+        output_face_blendshapes=False,
+        output_facial_transformation_matrixes=False,
+        num_faces=1,
+        min_face_detection_confidence=0.5,
+        min_face_presence_confidence=0.5,
+    )
+    detector = mp_vision.FaceLandmarker.create_from_options(options)
+
+    # Convert BGR to RGB for MediaPipe
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     h, w = img.shape[:2]
 
-    with mp_face_mesh.FaceMesh(
-        static_image_mode=True,
-        max_num_faces=1,
-        refine_landmarks=True,
-        min_detection_confidence=0.5
-    ) as face_mesh:
-        results = face_mesh.process(img_rgb)
+    # Create MediaPipe Image from numpy array
+    mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=img_rgb)
 
-        if not results.multi_face_landmarks:
-            return None
+    # Detect landmarks
+    result = detector.detect(mp_image)
 
-        # Extract first face's landmarks as pixel coordinates
-        face_landmarks = results.multi_face_landmarks[0]
-        landmarks = []
-        for lm in face_landmarks.landmark:
-            x = int(lm.x * w)
-            y = int(lm.y * h)
-            landmarks.append((x, y))
+    if not result.face_landmarks or len(result.face_landmarks) == 0:
+        return None
 
-        return landmarks
+    # Extract first face's landmarks as pixel coordinates
+    face_landmarks = result.face_landmarks[0]
+    landmarks = []
+    for lm in face_landmarks:
+        x = int(lm.x * w)
+        y = int(lm.y * h)
+        landmarks.append((x, y))
+
+    return landmarks
 
 
 # ---------------------------------------------------------------------------
@@ -191,10 +223,9 @@ def preprocess_pair(ref_path, sketch_path, output_size=512):
 
     Steps:
         1. Load images
-        2. Remove backgrounds
-        3. Detect landmarks on both
-        4. Align both faces
-        5. Convert to grayscale
+        2. Detect landmarks on both
+        3. Align both faces
+        4. Convert to grayscale
 
     Args:
         ref_path: path to reference portrait photo

@@ -5,6 +5,9 @@ __pycache__/
 venv/
 .env
 
+# MediaPipe model (auto-downloaded at runtime)
+models/
+
 # Uploads & runtime files
 static/uploads/*
 !static/uploads/.gitkeep
