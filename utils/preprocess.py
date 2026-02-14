@@ -13,65 +13,24 @@ import numpy as np
 import mediapipe as mp
 from mediapipe.tasks import python as mp_python
 from mediapipe.tasks.python import vision as mp_vision
-from rembg import remove
 from PIL import Image
 import os
 import urllib.request
 
 
 # ---------------------------------------------------------------------------
-# Model Download Helper
-# ---------------------------------------------------------------------------
-
-MODEL_URL = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task"
-MODEL_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "models")
-MODEL_PATH = os.path.join(MODEL_DIR, "face_landmarker.task")
-
-
-def ensure_model():
-    """Download the FaceLandmarker model if it doesn't exist."""
-    if os.path.exists(MODEL_PATH):
-        return
-    os.makedirs(MODEL_DIR, exist_ok=True)
-    print(f"Downloading FaceLandmarker model to {MODEL_PATH}...")
-    urllib.request.urlretrieve(MODEL_URL, MODEL_PATH)
-    print("Model downloaded successfully.")
-
-
-# ---------------------------------------------------------------------------
-# 1. Background Removal
-# ---------------------------------------------------------------------------
-
-def remove_background(img):
-    """
-    Remove the background from an image using rembg.
-
-    Args:
-        img: BGR image (numpy array from OpenCV)
-
-    Returns:
-        BGRA image with background removed (numpy array)
-    """
-    # Convert OpenCV BGR to PIL Image
-    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    pil_img = Image.fromarray(img_rgb)
-
-    # Remove background — returns PIL Image with alpha channel
-    result = remove(pil_img)
-
-    # Convert back to numpy array (BGRA)
-    result_np = np.array(result)
-    if result_np.shape[2] == 4:
-        result_bgra = cv2.cvtColor(result_np, cv2.COLOR_RGBA2BGRA)
-    else:
-        result_bgra = cv2.cvtColor(result_np, cv2.COLOR_RGB2BGR)
-
-    return result_bgra
-
-
-# ---------------------------------------------------------------------------
 # 2. Face Detection & Landmark Extraction (New Tasks API)
 # ---------------------------------------------------------------------------
+
+MODEL_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models", "face_landmarker.task")
+
+def ensure_model():
+    """Ensure the MediaPipe face_landmarker model exists."""
+    if not os.path.exists(MODEL_PATH):
+        print(f"Downloading face_landmarker.task to {MODEL_PATH}...")
+        url = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task"
+        urllib.request.urlretrieve(url, MODEL_PATH)
+        print("Download complete.")
 
 def detect_landmarks(img):
     """
